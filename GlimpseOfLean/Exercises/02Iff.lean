@@ -41,7 +41,11 @@ prove one-by-one.
 -/
 
 example (a b : ℝ) (ha : 0 < a) (hb : 0 < b) : 0 < a^2 + b^2 := by
-  sorry
+  have hasq : 0 < a^2 := by
+    apply sq_pos_of_pos ha
+  have hbsq : 0 < b^2 := by
+    apply sq_pos_of_pos hb
+  apply add_pos hasq hbsq
 
 /-
 You can also give a proof with forward reasoning, using the `have` tactic.
