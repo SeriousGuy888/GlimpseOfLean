@@ -1,7 +1,7 @@
 import Mathlib.Tactic
 
-def is_even (n: Int) := ∃ m : Int, n = (2 : Int) * m
-def is_odd (n: Int) := ∃ m : Int, n = (2 : Int) * m + 1
+def is_even (n: Int): Prop := ∃ m : Int, n = (2 : Int) * m
+def is_odd (n: Int) : Prop := ∃ m : Int, n = (2 : Int) * m + 1
 
 theorem sum_of_two_odds_is_even (a : Int) (b : Int) :
     (is_odd a ∧ is_odd b → is_even (a+b)) := by
