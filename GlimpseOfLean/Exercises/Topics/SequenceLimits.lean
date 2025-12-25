@@ -28,10 +28,10 @@ Let's prove some exercises using `linarith`.
 -/
 
 example (a b : ℝ) (ha : 0 ≤ a) (hb : 0 ≤ b) : 0 ≤ a + b := by
-  sorry
+  linarith
 
 example (a b c d : ℝ) (hab : a ≤ b) (hcd : c ≤ d) : a + c ≤ b + d := by
-  sorry
+  linarith
 
 /-
 A sequence `u` is a function from `ℕ` to `ℝ`, hence Lean says
@@ -67,7 +67,13 @@ where `by linarith` will provide the proof of `δ/2 > 0` expected by Lean.
 /- If u is constant with value l then u tends to l.
 Hint: `simp` can rewrite `|l - l|` to `0` -/
 example (h : ∀ n, u n = l) : seq_limit u l := by
-  sorry
+  unfold seq_limit
+  intro ε ε_positive
+  use 0
+  intro n n_positive
+  rw [h]
+  simp
+  linarith
 
 
 /-
@@ -101,7 +107,23 @@ or the primed version:
 -- Assume `l > 0`. Then `u` ts to `l` implies `u n ≥ l/2` for large enough `n`
 example (h : seq_limit u l) (hl : l > 0) :
     ∃ N, ∀ n ≥ N, u n ≥ l/2 := by
-  sorry
+  unfold seq_limit at h
+  let ε := l / 2
+  have ε_pos : ε > 0 := half_pos hl
+  specialize h ε ε_pos
+  obtain ⟨N, hN⟩ := h
+  use N
+  intro n n_ge_N
+  have un_close_to_ε : |u n - l| ≤ ε := hN n n_ge_N
+  rw [abs_le] at un_close_to_ε
+  have the_key: l - ε ≤ u n := by
+    calc
+      l - ε ≤ u n - l + l := by linarith
+          _ ≤ u n         := by linarith
+  calc
+    u n ≥ l - ε   := by exact the_key
+      _ = l - l/2 := by rfl
+      _ = l/2     := by ring
 
 
 /-
@@ -125,10 +147,10 @@ example (hu : seq_limit u l) (hv : seq_limit v l') :
   use max N₁ N₂
   intro n hn
   rw [ge_max_iff] at hn
-  rcases hn with ⟨hn₁, hn₂⟩ 
-  have fact₁ : |u n - l| ≤ ε/2 := hN₁ n hn₁ 
-  have fact₂ : |v n - l'| ≤ ε/2 := hN₂ n hn₂ 
-  
+  rcases hn with ⟨hn₁, hn₂⟩
+  have fact₁ : |u n - l| ≤ ε/2 := hN₁ n hn₁
+  have fact₂ : |v n - l'| ≤ ε/2 := hN₂ n hn₂
+
   calc
     |(u + v) n - (l + l')| = |u n + v n - (l + l')|   := rfl
     _ = |(u n - l) + (v n - l')|                      := by ring
@@ -141,10 +163,34 @@ In that example it can help to use the `specialize` tactic (introduced in the fi
 `03Forall.lean`) so that the `linarith` tactic can pick up the relevant files
 from the assumptions.
 -/
-example (hu : seq_limit u l) (hw : seq_limit w l) (h : ∀ n, u n ≤ v n) (h' : ∀ n, v n ≤ w n) :
+example
+      (hu : seq_limit u l)
+      (hw : seq_limit w l)
+      (h : ∀ n, u n ≤ v n)
+      (h' : ∀ n, v n ≤ w n) :
     seq_limit v l := by
-  sorry
-
+  unfold seq_limit at ⊢ hu hw
+  intro ε ε_pos
+  specialize hu ε ε_pos
+  specialize hw ε ε_pos
+  obtain ⟨N₁, hN₁⟩ := hu
+  obtain ⟨N₂, hN₂⟩ := hw
+  use max N₁ N₂
+  intro n hn
+  rw [ge_max_iff] at hn
+  obtain ⟨hn₁, hn₂⟩ := hn
+  specialize hN₁ n hn₁
+  specialize hN₂ n hn₂
+  specialize h n
+  specialize h' n
+  rw [abs_le] at ⊢ hN₁ hN₂
+  constructor
+  · calc
+      -ε ≤ u n - l := by exact hN₁.1
+       _ ≤ v n - l := by linarith
+  · calc
+      v n - l ≤ w n - l := by linarith
+            _ ≤ ε       := by exact hN₂.2
 
 
 /- In the next exercise, we'll use
@@ -157,8 +203,23 @@ Recall we listed three variations on the triangle inequality at the beginning of
 -- A sequence admits at most one limit. You will be able to use that lemma in the following
 -- exercises.
 lemma unique_limit : seq_limit u l → seq_limit u l' → l = l' := by
-  sorry
-
+  intro u_to_l u_to_l'
+  unfold seq_limit at u_to_l u_to_l'
+  apply eq_of_abs_sub_le_all
+  intro ε ε_pos
+  have half_ε_pos : ε/2 > 0 := by linarith
+  obtain ⟨N, hN⟩ := u_to_l (ε/2) (half_ε_pos)
+  obtain ⟨N', hN'⟩ := u_to_l' (ε/2) (half_ε_pos)
+  let n := max N N'
+  have hn : N ≤ n := by apply le_max_left
+  have hn' : N' ≤ n := by apply le_max_right
+  specialize hN n hn
+  specialize hN' n hn'
+  calc
+    |l - l'| ≤ |l - u n| + |u n - l'| := by apply abs_sub_le
+           _ = |u n - l| + |u n - l'| := by rw [abs_sub_comm]
+           _ ≤ (ε/2) + (ε/2)          := by linarith
+           _ ≤ ε                      := by linarith
 
 
 /-
@@ -170,8 +231,39 @@ def non_decreasing (u : ℕ → ℝ) := ∀ n m, n ≤ m → u n ≤ u m
 def is_seq_sup (M : ℝ) (u : ℕ → ℝ) :=
 (∀ n, u n ≤ M) ∧ ∀ ε > 0, ∃ n₀, u n₀ ≥ M - ε
 
-example (M : ℝ) (h : is_seq_sup M u) (h' : non_decreasing u) : seq_limit u M := by
-  sorry
+example
+      (M : ℝ)
+      (h : is_seq_sup M u)
+      (h' : non_decreasing u) :
+    seq_limit u M := by
+  unfold seq_limit
+  unfold is_seq_sup at h
+  unfold non_decreasing at h'
+  obtain ⟨u_never_exceeds_M, u_gets_arbitrarily_close_to_M⟩ := h
+  intro ε ε_pos
+  specialize u_gets_arbitrarily_close_to_M ε ε_pos
+  obtain ⟨N, hN⟩ := u_gets_arbitrarily_close_to_M
+  use N
+  intro n hn
+  apply abs_le.2
+  constructor
+  · have hN' : u N - M ≥ -ε := by linarith
+    have hN'' : -ε ≤ u N - M := by linarith
+    cases eq_or_lt_of_le hn with
+    | inl h_N_eq_n =>
+      calc
+        -ε ≤ u N - M := by exact hN''
+         _ = u n - M := by rw [h_N_eq_n]
+    | inr h_N_lt_n =>
+      have diff_is_bounded : u N - M ≤ u n - M := by
+        exact tsub_le_tsub_right (h' N n hn) M
+      calc
+        -ε ≤ u N - M := by linarith
+         _ ≤ u n - M := by linarith
+  · calc
+      u n - M ≤ M - M := by exact tsub_le_tsub_right (u_never_exceeds_M n) M
+            _ = 0     := by ring
+            _ ≤ ε     := by linarith
 
 /-
 We will now play with subsequences.
@@ -205,7 +297,34 @@ In the exercise, we use `∃ n ≥ N, ...` which is the abbreviation of
 /-- Extractions take arbitrarily large values for arbitrarily large
 inputs. -/
 lemma extraction_ge : extraction φ → ∀ N N', ∃ n ≥ N', φ n ≥ N := by
-  sorry
+  unfold extraction
+  intro φ_is_extraction
+  intro N N'
+  let n := max N N' + 1
+  have hN'_le_n : N' ≤ n := by
+    refine Nat.le_add_right_of_le ?_
+    exact Nat.le_max_right N N'
+  use n + 1
+  have hN'_le_n_plus_one : N' ≤ n + 1 := by
+    calc
+      N' ≤ n     := by exact hN'_le_n
+       _ ≤ n + 1 := by linarith
+  have hN_lt_n_plus_one : N < n + 1 := by
+    refine Nat.lt_add_right 1 ?_
+    refine Order.lt_add_one_iff.mpr ?_
+    exact Nat.le_max_left N N'
+
+  refine ⟨hN'_le_n_plus_one, ?_⟩
+  have φN_is_at_least_N : φ N ≥ N := id_le_extraction' φ_is_extraction N
+  specialize φ_is_extraction N (n+1) hN_lt_n_plus_one
+
+  have N_lt_φ_of_n_plus_one : N < φ (n + 1) :=
+    calc
+      N ≤ φ N     := by exact φN_is_at_least_N
+      _ < φ (n+1) := by exact φ_is_extraction
+      _ ≤ φ (n+1) := by linarith
+  apply Nat.le_of_succ_le N_lt_φ_of_n_plus_one
+
 
 /- A real number `a` is a cluster point of a sequence `u`
 if `u` has a subsequence converging to `a`.
@@ -216,7 +335,16 @@ def cluster_point (u : ℕ → ℝ) (a : ℝ) := ∃ φ, extraction φ ∧ seq_l
 /-- If `a` is a cluster point of `u` then there are values of
 `u` arbitrarily close to `a` for arbitrarily large input. -/
 lemma near_cluster :
-  cluster_point u a → ∀ ε > 0, ∀ N, ∃ n ≥ N, |u n - a| ≤ ε := by
+    cluster_point u a → ∀ ε > 0, ∀ N, ∃ n ≥ N, |u n - a| ≤ ε := by
+  unfold cluster_point
+  intro a_is_cluster_point_of_u
+  intro ε ε_pos
+  intro N
+  obtain ⟨φ, φ_is_extraction, subseq_uφ_converges_to_a⟩
+    := a_is_cluster_point_of_u
+  unfold seq_limit at subseq_uφ_converges_to_a
+  specialize subseq_uφ_converges_to_a ε ε_pos
+  -- ???
   sorry
 
 
@@ -243,4 +371,3 @@ In the next exercise, you can reuse
 
 example (hu : CauchySequence u) (hl : cluster_point u l) : seq_limit u l := by
   sorry
-
